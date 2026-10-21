@@ -79,6 +79,9 @@ def send_outreach_email(session: Session, draft_id: int) -> dict:
         return {"sent": False, "reason": "no_such_draft"}
     if draft.status != DraftStatus.draft:
         return {"sent": False, "reason": f"draft_already_{draft.status}"}
+    if draft.channel != Channel.email:
+        # This sender speaks SMTP only; a draft written for another channel must never go out as email.
+        return {"sent": False, "reason": "not_an_email_draft"}
 
     person = session.get(Person, draft.person_id)
     valid_emails = [e for e in person.emails if e.validation_status == "valid"]

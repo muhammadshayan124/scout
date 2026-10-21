@@ -16,6 +16,7 @@ import re
 from email.header import decode_header
 from email.utils import parseaddr
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from scout.agents.events import log_event
@@ -91,7 +92,7 @@ def check_replies(session: Session, limit: int = 50) -> dict:
             body = _extract_body(msg)
 
             email_row = (
-                session.query(EmailAddress).filter_by(address=sender_addr).one_or_none()
+                session.query(EmailAddress).filter(func.lower(EmailAddress.address) == sender_addr).first()
                 if sender_addr else None
             )
             if email_row is None:

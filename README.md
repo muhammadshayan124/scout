@@ -95,6 +95,30 @@ dashboard):
 ./.venv/Scripts/python -m uvicorn scout.api:app --port 8420
 ```
 
+## Tests
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+63 tests cover the mechanical, safety-critical parts: the warmup ramp boundaries, the
+kill switch, suppression and daily cap, every branch of the SMTP-verdict classifier
+(including the sender-IP-reputation case that once silently dropped valid leads), the
+send gate (only `valid` addresses, one send per draft, email-channel drafts only), and
+unsubscribe detection and suppression on reply.
+
+They run on in-memory SQLite (JSONB rendered as JSON), so CI needs no Postgres. A tripwire
+replaces `smtplib`/`imaplib` for every test and `settings` is overridden, so the suite
+cannot send mail or read a local `.env`, even on a machine holding live credentials. The
+suite found two bugs, both fixed: a draft written for another channel would have been
+sent by SMTP, and reply sender matching was case-sensitive against un-normalised stored
+addresses.
+
+What is deliberately not tested: the reasoning steps (scoring, drafting, reply intent),
+which live outside this codebase by design, and the live SAM.gov / ACEC / SMTP / IMAP
+integrations, which were verified by hand against the real services.
+
 ## What's real vs. what's still a gap
 
 Everything below has been live-tested against real data this session, not just written
@@ -123,8 +147,8 @@ mislabeled valid leads as invalid).
   go-ahead separately from having built this. See ARCHITECTURE.md §12.
 - **Reply/Response Agent**: unsubscribe detection tested against 12 real-world phrasings
   (all correct); the classify context/save round trip tested with a simulated real reply
-  end-to-end, including confirming it flows through to the API correctly. The actual IMAP
-  fetch (`check_replies`) isn't tested yet -- same credential gap as SMTP. See
+  end-to-end, including confirming it flows through to the API correctly. `check_replies` is covered by
+  tests against a fake IMAP server and was also run once against the real inbox. See
   ARCHITECTURE.md §13.
 - **Monitoring API** (`scout/api.py`): all 5 endpoints live-tested via real HTTP requests
   against the real DB, including confirming a `POST /killswitch` is visible through the
@@ -138,3 +162,7 @@ mislabeled valid leads as invalid).
   owns 5432 on this machine, so scout was given its own port rather than touching it.
 - `agent_events` (the timeline/audit table) is written to by every agent call already --
   worth a `SELECT * FROM agent_events ORDER BY ts DESC LIMIT 20` to see it in action.
+
+## License
+
+MIT
